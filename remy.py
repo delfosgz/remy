@@ -1,25 +1,40 @@
 from langgraph.graph import START, END, StateGraph, MessagesState
 from langchain_openai import ChatOpenAI
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode, tools_condition
+from langchain_mcp_adapters.client import MultiServerMCPClient     
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field, field_validator
+from typing import TypedDict, Optional
 
 load_dotenv()
 
 #llm
-llm = ChatOpenAI(model='gpt-5-mini')
+llm = ChatOpenAI(model='gpt-4o-mini')
 
 # state
 class State(MessagesState):
     pass
 
-#tools
-@tool
+# schemas
+class diner_name_schema(BaseModel):
+    diner_name: str = Field('nombre del comensal')
+
+    @field_validator('diner_name', mode='before')
+    @classmethod
+    def lower_name(cls, value: Optional[str]) -> str:
+        if value:
+            return value.lower()
+        return value
+    
+    
+# in code tools
+@tool(args_schema=diner_name_schema)
 def get_diners_preferences(diner_name :str) -> str:
     """Útil para obtener las restricciones alimenticias o preferencias de un comensal a partir de su nombre.
     DEBES usar esta herramienta SIEMPRE antes de crear o sugerir una receta para una persona específica."""
+    print(f"DEBUG: diner_name recibido -> {diner_name}")
     diners = {
         'camila' : 'sin picante',
         'mama' : 'sin gluten',
@@ -31,7 +46,25 @@ def get_diners_preferences(diner_name :str) -> str:
     else:
         return 'no preferences'
 
-tools = [get_diners_preferences]
+# # ── Conexión al MCP Server ─────────────────────────────────────────────────────
+# from langchain_mcp_adapters.client import MultiServerMCPClient
+
+# client = MultiServerMCPClient(
+#     {
+#         'Cocina_Tools':{
+#             'transport':'stdio',
+#             'command':'python',
+#             'args':['mcp_server.py']
+#         }
+#     }
+# )
+# tools = await client.get_tools()
+# reso
+
+
+
+# tools
+tools = [get_diners_preferences] #+ mcp_tools
 tool_node = ToolNode(tools)
 
 # node
